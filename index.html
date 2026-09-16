@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>放射性药物需求估算器</title>
+<style>
+  :root{
+    --bg:#f3f6fa; --card:#ffffff;
+    --line:#e2e8f1; --line-strong:#cfd9e6;
+    --ink:#152436; --muted:#5f7085; --faint:#8b99ab;
+    --primary:#17539e; --primary-ink:#0f3c74; --primary-soft:#eaf2fb;
+    --ok:#0c7a55; --ok-soft:#f0f9f4; --ok-line:#bfe0d0;
+    --warn:#8f6400; --warn-soft:#fdf6e4;
+    --err:#b3261e; --err-soft:#fdecea;
+    --hint:#17539e; --hint-soft:#eef4fb;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(21,36,54,.05), 0 12px 32px -16px rgba(21,36,54,.14);
+  }
+  *{box-sizing:border-box}
+  body::before{content:''; display:block; height:4px;
+    background:linear-gradient(90deg,#17539e 0%,#2e7d5b 100%);}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+    font-size:15px; line-height:1.6;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 22px 56px}
+
+  /* ===== 页头与全局参数 ===== */
+  header.site{padding:26px 0 0}
+  .brand-row{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
+  .brand h1{margin:0; font-size:25px; font-weight:800; letter-spacing:.3px}
+  .lang-switch{display:inline-flex; gap:4px; background:#e4eaf3; padding:3px; border-radius:10px; flex:none; margin-top:4px}
+  .lang-switch button{border:none; background:transparent; padding:5px 14px; border-radius:8px;
+    cursor:pointer; font-family:inherit; font-size:13px; color:var(--muted)}
+  .lang-switch button.active{background:var(--card); color:var(--primary); font-weight:700;
+    box-shadow:0 1px 3px rgba(21,36,54,.18)}
+  .settings{display:flex; gap:14px; flex-wrap:wrap; margin-top:16px}
+  .setting{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:14px 18px; flex:1 1 0; min-width:280px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .setting-compact{flex:0 1 auto; min-width:250px}
+  .setting-main{flex:1 1 0; min-width:300px}
+  .setting>label{font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.6px}
+  .lbl-in{font-size:12.5px; font-weight:700; color:var(--muted); white-space:nowrap}
+  .ctrl{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .ctrl .unit{color:var(--faint); font-size:13.5px}
+  #hl-inline{font-size:12.5px; font-weight:600; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
+  .setting .note{font-size:12px; color:var(--faint); margin-top:-2px}
+  /* 自定义半衰期：一行紧凑（年月日时分秒），位于下拉框右侧 */
+  #hl-custom{display:none; align-items:center; gap:5px; flex-wrap:wrap}
+  .hu{display:flex; align-items:center; gap:2px}
+  .hu input{width:42px; padding:4px 6px; font-size:12.5px}
+  .hu input::-webkit-outer-spin-button,.hu input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .hu input{-moz-appearance:textfield;appearance:textfield}
+  .hu em{font-style:normal; font-size:11px; color:var(--muted)}
+  /* 卡片内给药公式行 */
+  .fb-line{font-size:14px; font-weight:600}
+  .fb-line input{width:78px; padding:5px 9px; font-size:14px}
+  .fb-eg-line{font-size:12.5px; color:var(--muted)}
+  .fb-eg-line b{color:var(--ok); font-variant-numeric:tabular-nums}
+  #set-msg{margin-top:10px}
+  #set-msg:empty{display:none}
+
+  /* ===== 页签 ===== */
+  nav.tabs{display:flex; gap:4px; background:#e4eaf3; padding:4px;
+    border-radius:13px; margin:14px 0 16px; max-width:100%; overflow-x:auto}
+  nav.tabs button{
+    border:none; background:transparent; padding:8px 18px; border-radius:10px;
+    font-size:14.5px; color:var(--muted); cursor:pointer; font-family:inherit;
+    white-space:nowrap; text-align:left; display:flex; flex-direction:column; gap:1px;
+    flex:1 1 auto;
+  }
+  nav.tabs button .tb-s{font-size:11.5px; color:var(--faint); font-weight:400}
+  nav.tabs button.active{background:var(--card); color:var(--primary); font-weight:700;
+    box-shadow:0 1px 4px rgba(21,36,54,.18)}
+  nav.tabs button.active .tb-s{color:var(--muted)}
+
+  /* 用法提示与页脚声明 */
+  .howto{margin:14px 0 0; font-size:13px; color:var(--muted)}
+  .howto b{color:var(--ink); font-weight:700}
+  footer.site-foot{margin-top:28px; padding-top:14px; border-top:1px solid var(--line);
+    font-size:12px; color:var(--faint)}
+  .eta-src{font-size:12px; color:var(--faint); margin:6px 0 0}
+  .est-note{color:var(--muted)}
+
+  section.panel{display:none; margin-top:4px}
+  section.panel.active{display:block}
+
+  /* ===== 主体布局：输入列与结果列等宽等高 ===== */
+  .panel-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch}
+  @media (max-width:920px){
+    .panel-grid{grid-template-columns:1fr}
+    /* 窄屏：结果卡置顶并吸顶，避免在长输入框里填完后还要往下翻才看到结论 */
+    .panel-grid>.card:nth-child(2){order:-1; position:sticky; top:0; z-index:3}
+  }
+  /* 页签单行需 695px 以上才放得下；不足时排成 2×2，四个策略一屏可见 */
+  @media (max-width:760px){
+    nav.tabs{display:grid; grid-template-columns:1fr 1fr; overflow-x:visible}
+    nav.tabs button{padding:8px 10px; font-size:13px; white-space:normal}
+    nav.tabs button .tb-s{font-size:10.5px; white-space:normal}
+  }
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:20px}
+  .card h2{margin:0 0 14px; font-size:13px; color:var(--faint); font-weight:700; letter-spacing:2px}
+
+  .field{margin-bottom:14px}
+  .field label{display:block; font-size:13.5px; font-weight:600; margin-bottom:6px}
+  .field .opt{color:var(--faint); font-weight:400; font-size:12.5px}
+  .inline-fields{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:flex-start}
+  .inline-fields .field{margin-bottom:0}
+  .inline-fields .field label{white-space:nowrap}
+  .inline-fields + .inline-fields{margin-top:2px}
+  .dur-row{display:flex; align-items:center; gap:8px}
+  .dur-row input{width:86px}
+  .dur-row .unit{color:var(--muted); font-size:13.5px}
+
+  select,input[type=text],input[type=number],textarea{
+    border:1px solid var(--line-strong); border-radius:10px; padding:8px 11px;
+    font-size:14.5px; font-family:inherit; color:var(--ink); background:#fff;
+  }
+  select{cursor:pointer}
+  input.invalid,select.invalid{border-color:var(--err)}
+  select:focus,input:focus,textarea:focus{outline:none; border-color:var(--primary);
+    box-shadow:0 0 0 3px rgba(23,83,158,.14)}
+  textarea{width:100%; resize:vertical; min-height:150px; font-variant-numeric:tabular-nums; white-space:pre}
+  .btnrow{display:flex; gap:9px; margin:12px 0 6px; align-items:center}
+  .btn{
+    border:1px solid var(--primary); background:var(--primary); color:#fff; border-radius:10px;
+    padding:8px 18px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition:background .15s;
+  }
+  .btn:hover{background:#12467f}
+  .btn.ghost{background:#fff; color:var(--primary)}
+  .btn.ghost:hover{background:var(--primary-soft)}
+  .btn.tiny{padding:5px 12px; font-size:12px}
+  .hint{font-size:12.5px; color:var(--muted); margin:8px 0 0}
+
+  /* ===== 提示消息 ===== */
+  .msg{margin:0 0 14px}
+  .msg:empty{display:none}
+  .msg .box{border-radius:9px; padding:8px 13px; font-size:13px; margin-bottom:7px;
+    border-left:3px solid transparent}
+  .msg .err{background:var(--err-soft); color:var(--err); border-left-color:var(--err)}
+  .msg .warn{background:var(--warn-soft); color:var(--warn); border-left-color:var(--warn)}
+  .msg .hintb{background:var(--hint-soft); color:var(--hint); border-left-color:var(--hint)}
+  .msg .neutral{background:#f1f5f9; color:var(--muted); border-left-color:var(--line-strong)}
+
+  /* ===== 结果 ===== */
+  .result-block{border:1px solid var(--line); border-radius:14px; padding:15px 19px;
+    margin-bottom:14px; background:#fbfcfe}
+  .result-block .result-label{font-size:13px; color:var(--muted); margin-bottom:3px}
+  .result-block .result-value{font-size:32px; font-weight:800; color:var(--primary);
+    font-variant-numeric:tabular-nums; line-height:1.25; letter-spacing:-.3px}
+  .result-block .result-value .unit{font-size:15px; font-weight:600; color:var(--muted); margin-left:5px}
+  .result-block .result-sub{font-size:12.5px; color:var(--muted); margin-top:3px; font-variant-numeric:tabular-nums}
+  .result-block.recommend{background:linear-gradient(135deg,#f2faf5,#e9f6ef);
+    border:1px solid var(--ok-line); border-left:4px solid var(--ok)}
+  .result-block.recommend .result-value{color:var(--ok)}
+
+  .eta-field .btnrow{margin:0}
+  .eta-field input{width:110px}
+
+  /* ===== 注射明细 ===== */
+  .detail-card{margin-top:16px}
+  .detail-flex{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap}
+  .detail-flex .table-wrap{flex:1 1 300px; margin:0}
+  #detail-chart{flex:1 1 280px; min-width:250px}
+  #detail-chart svg{width:100%; height:auto; display:block}
+  .table-wrap{max-height:420px; overflow:auto; border:1px solid var(--line);
+    border-radius:12px; margin:0 0 12px}
+  .table-wrap table{width:100%; border-collapse:collapse; font-size:13.5px; font-variant-numeric:tabular-nums}
+  .table-wrap th{position:sticky; top:0; background:#f6f9fc; color:var(--muted); font-weight:600;
+    text-align:right; padding:7px 12px; border-bottom:1px solid var(--line); white-space:nowrap}
+  .table-wrap th:first-child,.table-wrap td:first-child{text-align:center}
+  .table-wrap td{text-align:right; padding:6px 12px; border-bottom:1px solid #eef2f7}
+  .table-wrap tbody tr:hover td{background:#f7fafd}
+  /* 合计行：滚动时吸底，与结果区的基础估算量对应 */
+  .table-wrap tfoot td{position:sticky; bottom:0; background:#f6f9fc; font-weight:700; color:var(--ink);
+    border-top:1px solid var(--line-strong); border-bottom:none; padding:8px 12px}
+  .table-wrap tfoot td:first-child{text-align:right; font-weight:600; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="site">
+  <div class="brand-row">
+    <div class="brand">
+      <h1 data-i18n="app.title">放射性药物需求估算器</h1>
+    </div>
+    <div class="lang-switch">
+      <button data-lang="zh" class="active">中文</button>
+      <button data-lang="en">English</button>
+    </div>
+  </div>
+  <div class="settings">
+    <div class="setting setting-compact">
+      <div class="ctrl">
+        <label class="lbl-in" for="set-isotope" data-i18n="set.isotope">核素</label>
+        <select id="set-isotope" style="width:118px"></select>
+        <span id="hl-inline"></span>
+      </div>
+      <div id="hl-custom" style="display:none">
+        <span class="hu"><input type="number" id="hl-y" step="any" min="0" placeholder="0"><em data-i18n="hl.y">年</em></span>
+        <span class="hu"><input type="number" id="hl-mo" step="any" min="0" placeholder="0"><em data-i18n="hl.mo">月</em></span>
+        <span class="hu"><input type="number" id="hl-d" step="any" min="0" placeholder="0"><em data-i18n="hl.d">日</em></span>
+        <span class="hu"><input type="number" id="hl-h" step="any" min="0" placeholder="0"><em data-i18n="hl.h">时</em></span>
+        <span class="hu"><input type="number" id="hl-mi" step="any" min="0" placeholder="0"><em data-i18n="hl.mi">分</em></span>
+        <span class="hu"><input type="number" id="hl-s" step="any" min="0" placeholder="0"><em data-i18n="hl.s">秒</em></span>
+      </div>
+      <div class="ctrl">
+        <label class="lbl-in" for="set-unit" data-i18n="set.unit">单位</label>
+        <select id="set-unit" style="width:118px"></select>
+      </div>
+    </div>
+    <div class="setting setting-main">
+      <label for="set-coeff" data-i18n="coeff.title">每例给药活度</label>
+      <div class="fb-line"><span data-i18n="coeff.pre">= 体重（kg） × </span><input type="number" id="set-coeff" step="0.01" min="0" value="0.11"><span class="unit" id="coeff-unit"> mCi/kg</span></div>
+      <div class="fb-eg-line"><span data-i18n="coeff.egpre">示例：70 kg × </span><b id="fb-coeff">0.11</b><span> = </span><b id="fb-eg">7.70</b><span class="fb-eg-unit"> mCi</span></div>
+    </div>
+  </div>
+  <div class="msg" id="set-msg"></div>
+</header>
+
+<p class="howto" data-i18n="howto">用法：选一个页签 → 按提示填入数据 → 取「建议装药量」</p>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="A">
+    <span class="tb-t" data-i18n="tab.A">策略A · 精准计算</span>
+    <span class="tb-s" data-i18n="tab.A.sub">需要：每人注射时间 + 体重</span>
+  </button>
+  <button class="tab" data-tab="B">
+    <span class="tb-t" data-i18n="tab.B">策略B · 平均剂量</span>
+    <span class="tb-s" data-i18n="tab.B.sub">需要：每人注射时间</span>
+  </button>
+  <button class="tab" data-tab="C">
+    <span class="tb-t" data-i18n="tab.C">策略C · 平均时间</span>
+    <span class="tb-s" data-i18n="tab.C.sub">需要：每人体重 + 总时长</span>
+  </button>
+  <button class="tab" data-tab="D">
+    <span class="tb-t" data-i18n="tab.D">策略D · 粗略估算</span>
+    <span class="tb-s" data-i18n="tab.D.sub">需要：人数 + 总时长</span>
+  </button>
+</nav>
+
+<!-- ============ 策略 A ============ -->
+<section class="panel active" id="panel-A">
+  <div class="panel-grid">
+    <div class="card">
+      <h2 data-i18n="input.h">输入</h2>
+      <div class="field" style="max-width:220px">
+        <label for="A-t0"><span data-i18n="t0.label">装药时间</span> <span class="opt" data-i18n="t0.opt.req">（HH:MM *必填）</span></label>
+        <input type="text" id="A-t0" placeholder="07:30" style="width:150px" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="A-data" data-i18n="A.data.label">患者数据（每行一例：注射时间 ＋ 体重 kg）</label>
+        <textarea id="A-data" rows="11" spellcheck="false" data-i18n-ph="A.data.ph"></textarea>
+      </div>
+      <div class="btnrow">
+        <button class="btn" data-example="A" data-i18n="btn.example">填入示例</button>
+        <button class="btn ghost" data-clear="A" data-i18n="btn.clear">清空</button>
+      </div>
+      <p class="hint" data-i18n="hint.A"></p>
+    </div>
+    <div class="card">
+      <h2 data-i18n="result.h">结果</h2>
+      <div class="msg" id="A-msg"></div>
+      <div class="result-block recommend" aria-live="polite">
+        <div class="result-label" data-i18n="rec.label">建议装药量</div>
+        <div class="result-value"><span id="A-rec">—</span><span class="unit act-unit">mCi</span></div>
+        <div class="result-sub" id="A-rec-sub"></div>
+        <div class="result-sub est-note" id="A-est-sub"></div>
+      </div>
+      <div class="field eta-field">
+        <label for="A-eta" data-i18n="eta.label">安全系数</label>
+        <div class="btnrow" style="margin:0">
+          <input type="number" id="A-eta" step="0.01" min="0" value="1.00">
+          <button class="btn tiny ghost" data-reset-eta="A"></button>
+        </div>
+        <p class="eta-src" data-i18n="eta.src">默认值由本中心历史注射数据校准，其他单位请按自身情况调整。</p>
+      </div>
+      <button class="btn ghost" data-copy="A" data-i18n="copy.btn">复制结果摘要</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 策略 B ============ -->
+<section class="panel" id="panel-B">
+  <div class="panel-grid">
+    <div class="card">
+      <h2 data-i18n="input.h">输入</h2>
+      <div class="inline-fields">
+        <div class="field">
+          <label for="B-t0" data-i18n="t0.label">装药时间</label>
+          <input type="text" id="B-t0" placeholder="07:30" style="width:150px" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="B-qbar"><span data-i18n="qbar.label">每人平均剂量</span>（<span class="qbar-unit">mCi</span>）</label>
+          <input type="number" id="B-qbar" class="qbar-sync" step="0.01" min="0" value="7.26" style="width:110px">
+        </div>
+      </div>
+      <div class="field">
+        <label for="B-data" data-i18n="B.data.label">患者注射时间（每行一例）</label>
+        <textarea id="B-data" rows="11" spellcheck="false" data-i18n-ph="B.data.ph"></textarea>
+      </div>
+      <div class="btnrow">
+        <button class="btn" data-example="B" data-i18n="btn.example">填入示例</button>
+        <button class="btn ghost" data-clear="B" data-i18n="btn.clear">清空</button>
+      </div>
+      <p class="hint" data-i18n="hint.B"></p>
+    </div>
+    <div class="card">
+      <h2 data-i18n="result.h">结果</h2>
+      <div class="msg" id="B-msg"></div>
+      <div class="result-block recommend" aria-live="polite">
+        <div class="result-label" data-i18n="rec.label">建议装药量</div>
+        <div class="result-value"><span id="B-rec">—</span><span class="unit act-unit">mCi</span></div>
+        <div class="result-sub" id="B-rec-sub"></div>
+        <div class="result-sub est-note" id="B-est-sub"></div>
+      </div>
+      <div class="field eta-field">
+        <label for="B-eta" data-i18n="eta.label">安全系数</label>
+        <div class="btnrow" style="margin:0">
+          <input type="number" id="B-eta" step="0.01" min="0" value="1.07">
+          <button class="btn tiny ghost" data-reset-eta="B"></button>
+        </div>
+        <p class="eta-src" data-i18n="eta.src">默认值由本中心历史注射数据校准，其他单位请按自身情况调整。</p>
+      </div>
+      <button class="btn ghost" data-copy="B" data-i18n="copy.btn">复制结果摘要</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 策略 C ============ -->
+<section class="panel" id="panel-C">
+  <div class="panel-grid">
+    <div class="card">
+      <h2 data-i18n="input.h">输入</h2>
+      <div class="inline-fields">
+        <div class="field">
+          <label for="C-t0"><span data-i18n="t0.label">装药时间</span> <span class="opt" data-i18n="t0.opt.disp">（选填，仅用于显示钟表时刻）</span></label>
+          <input type="text" id="C-t0" placeholder="07:30" style="width:150px" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="C-Th" data-i18n="T.label">总时长（装药 → 最后一例注射）</label>
+          <div class="dur-row">
+            <input type="number" id="C-Th" step="1" min="0" data-i18n-ph="dur.phH"><span class="unit" data-i18n="dur.h">时</span>
+            <input type="number" id="C-Tm" step="1" min="0" data-i18n-ph="dur.phM"><span class="unit" data-i18n="dur.m">分</span>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="C-data" data-i18n="C.data.label">患者体重（每行一例，按注射先后顺序，单位 kg）</label>
+        <textarea id="C-data" rows="11" spellcheck="false" data-i18n-ph="C.data.ph"></textarea>
+      </div>
+      <div class="btnrow">
+        <button class="btn" data-example="C" data-i18n="btn.example">填入示例</button>
+        <button class="btn ghost" data-clear="C" data-i18n="btn.clear">清空</button>
+      </div>
+      <p class="hint" data-i18n="hint.C"></p>
+    </div>
+    <div class="card">
+      <h2 data-i18n="result.h">结果</h2>
+      <div class="msg" id="C-msg"></div>
+      <div class="result-block recommend" aria-live="polite">
+        <div class="result-label" data-i18n="rec.label">建议装药量</div>
+        <div class="result-value"><span id="C-rec">—</span><span class="unit act-unit">mCi</span></div>
+        <div class="result-sub" id="C-rec-sub"></div>
+        <div class="result-sub est-note" id="C-est-sub"></div>
+      </div>
+      <div class="field eta-field">
+        <label for="C-eta" data-i18n="eta.label">安全系数</label>
+        <div class="btnrow" style="margin:0">
+          <input type="number" id="C-eta" step="0.01" min="0" value="1.15">
+          <button class="btn tiny ghost" data-reset-eta="C"></button>
+        </div>
+        <p class="eta-src" data-i18n="eta.src">默认值由本中心历史注射数据校准，其他单位请按自身情况调整。</p>
+      </div>
+      <button class="btn ghost" data-copy="C" data-i18n="copy.btn">复制结果摘要</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 策略 D ============ -->
+<section class="panel" id="panel-D">
+  <div class="panel-grid">
+    <div class="card">
+      <h2 data-i18n="input.h">输入</h2>
+      <div class="inline-fields">
+        <div class="field">
+          <label for="D-N" data-i18n="N.label">患者人数</label>
+          <input type="number" id="D-N" step="1" min="1" placeholder="25" style="width:110px">
+        </div>
+        <div class="field">
+          <label for="D-Th" data-i18n="T.label">总时长（装药 → 最后一例注射）</label>
+          <div class="dur-row">
+            <input type="number" id="D-Th" step="1" min="0" data-i18n-ph="dur.phH"><span class="unit" data-i18n="dur.h">时</span>
+            <input type="number" id="D-Tm" step="1" min="0" data-i18n-ph="dur.phM"><span class="unit" data-i18n="dur.m">分</span>
+          </div>
+        </div>
+      </div>
+      <div class="inline-fields">
+        <div class="field">
+          <label for="D-t0"><span data-i18n="t0.label">装药时间</span> <span class="opt" data-i18n="t0.opt.disp">（选填，仅用于显示钟表时刻）</span></label>
+          <input type="text" id="D-t0" placeholder="07:30" style="width:150px" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="D-qbar"><span data-i18n="qbar.label">每人平均剂量</span>（<span class="qbar-unit">mCi</span>）</label>
+          <input type="number" id="D-qbar" class="qbar-sync" step="0.01" min="0" value="7.26" style="width:110px">
+        </div>
+      </div>
+      <div class="btnrow">
+        <button class="btn" data-example="D" data-i18n="btn.example">填入示例</button>
+        <button class="btn ghost" data-clear="D" data-i18n="btn.clear">清空</button>
+      </div>
+      <p class="hint" data-i18n="hint.D"></p>
+    </div>
+    <div class="card">
+      <h2 data-i18n="result.h">结果</h2>
+      <div class="msg" id="D-msg"></div>
+      <div class="result-block recommend" aria-live="polite">
+        <div class="result-label" data-i18n="rec.label">建议装药量</div>
+        <div class="result-value"><span id="D-rec">—</span><span class="unit act-unit">mCi</span></div>
+        <div class="result-sub" id="D-rec-sub"></div>
+        <div class="result-sub est-note" id="D-est-sub"></div>
+      </div>
+      <div class="field eta-field">
+        <label for="D-eta" data-i18n="eta.label">安全系数</label>
+        <div class="btnrow" style="margin:0">
+          <input type="number" id="D-eta" step="0.01" min="0" value="1.21">
+          <button class="btn tiny ghost" data-reset-eta="D"></button>
+        </div>
+        <p class="eta-src" data-i18n="eta.src">默认值由本中心历史注射数据校准，其他单位请按自身情况调整。</p>
+      </div>
+      <button class="btn ghost" data-copy="D" data-i18n="copy.btn">复制结果摘要</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 注射明细（输入后逐行显示） ============ -->
+<section class="card detail-card" id="detail-card" style="display:none">
+  <h2 id="detail-title"></h2>
+  <div class="detail-flex">
+    <div class="table-wrap" id="detail-table"></div>
+    <div id="detail-chart"></div>
+  </div>
+  <p class="hint" data-i18n="detail.hint"></p>
+</section>
+
+<footer class="site-foot">
+  <p data-i18n="foot.disclaimer">本工具仅供装药量估算参考，不构成医疗建议。实际装药请遵循本科室操作规程与医嘱。</p>
+</footer>
+
+<noscript><p style="color:#b3261e">JavaScript is required / 本工具需要启用 JavaScript。</p></noscript>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ===== 多语言 ===== */
+var LANG = localStorage.getItem('fdg-lang') || 'zh';
+var STR = {
+zh: {
+  'app.title':'放射性药物需求估算器',
+  'howto':'用法：选一个页签 → 按提示填入数据 → 取「建议装药量」',
+  'set.isotope':'核素','custom':'自定义',
+  'hl.prefix':'半衰期：','hl.y':'年','hl.mo':'月','hl.d':'日','hl.h':'时','hl.mi':'分','hl.s':'秒',
+  'coeff.title':'每例给药活度','coeff.pre':'= 体重（kg） × ','coeff.unit':' mCi/kg',
+  'coeff.egpre':'示例：70 kg × ',
+  'tab.A':'策略A · 精准计算','tab.A.sub':'需要：每人注射时间 + 体重',
+  'tab.B':'策略B · 平均剂量','tab.B.sub':'需要：每人注射时间',
+  'tab.C':'策略C · 平均时间','tab.C.sub':'需要：每人体重 + 总时长',
+  'tab.D':'策略D · 粗略估算','tab.D.sub':'需要：人数 + 总时长',
+  'input.h':'输入','result.h':'结果',
+  't0.label':'装药时间','t0.opt.req':'（HH:MM *必填）','t0.opt.disp':'（选填，仅用于显示钟表时刻）',
+  'A.data.label':'患者数据（每行一例：注射时间 ＋ 体重 kg）',
+  'A.data.ph':'每行两列，逗号 / 空格 / Tab 分隔，两种时间写法可混用：\n  08:13, 70    ← HH:MM 时间（需填装药时间）＋ 体重 kg\n  43, 70       ← 装药后分钟数 ＋ 体重 kg\n也可从 Excel 直接粘贴两列（时间列在前）\n每例活度按「每例给药活度」由体重自动折算',
+  'B.data.label':'患者注射时间（每行一例）',
+  'B.data.ph':'每行一个注射时间，两种写法可混用：\n  08:13     ← HH:MM（需填装药时间）\n  43        ← 装药后分钟数\n若从 Excel 粘贴了多余列，会被自动忽略',
+  'C.data.label':'患者体重（每行一例，按注射先后顺序，单位 kg）',
+  'C.data.ph':'每行一个体重（kg），按注射先后顺序排列：\n  72\n  58\n  80\n  …\n每例活度按「每例给药活度」由体重自动折算\n若粘贴了“时间＋体重”两列，将自动取体重列',
+  'T.label':'总时长（装药 → 最后一例注射）','dur.h':'时','dur.m':'分','dur.phH':'小时','dur.phM':'分钟',
+  'N.label':'患者人数','qbar.label':'每人平均剂量','set.unit':'单位',
+  'btn.example':'填入示例','btn.clear':'清空',
+  'hint.A':'体重须为正数；患者先后顺序不影响结果。若只有注射时间没有体重 → 请用策略B；只有体重没有时间 → 请用策略C。',
+  'hint.B':'全部患者按同一个平均剂量计算，可在上方「每人平均剂量」中修改，策略D会自动同步；注射时间用 HH:MM 写法时才需要填装药时间。',
+  'hint.C':'策略C不知道每人具体的注射时间，改用等间隔推算：第 1 例按装药时间、最后一例落在总时长处，中间等间隔；只有 1 位患者时间隔等于总时长。装药时间选填，仅用于显示钟表时刻。',
+  'hint.D':'按人数和总时长做等间隔推算：第 1 例按装药时间、最后一例落在总时长处。每人平均剂量与策略B自动同步。装药时间选填，仅用于显示钟表时刻。',
+  'est.note':'其中基础估算量 #v #u（未含安全余量）',
+  'eta.label':'安全系数','eta.reset':'恢复内置','eta.src':'默认值由本中心历史注射数据校准，其他单位请按自身情况调整。',
+  'rec.label':'建议装药量','copy.btn':'复制结果摘要',
+  'detail.title':'注射明细',
+  'tbl.time':'注射时间','tbl.plan':'计划注射时间','tbl.act':'注射活度','tbl.cal':'折合到装药时',
+  'tbl.total':'合计',
+  'detail.hint':'「注射活度」是该例在注射时实际给予的活度（体重 × 每例给药活度系数；策略B / D 为每人平均剂量）；「折合到装药时」把各例活度按衰变换算回装药那一刻，各行相加即为基础估算量。右图为瓶内剩余活度（从建议装药量起算，随衰变和逐例注射下降）。',
+  'unit.min':'分钟','unit.h':'小时','unit.min2':'分',
+  'foot.disclaimer':'本工具仅供装药量估算参考，不构成医疗建议。实际装药请遵循本科室操作规程与医嘱。',
+  'msg.noWeightCol':'缺少体重列（kg）','msg.noTimeCol':'缺少注射时间列',
+  'msg.badTime':'“#v”不是有效的时间（应为 HH:MM 或装药后分钟数）','msg.negT':'注射时间不能为负',
+  'msg.badWeight':'体重须为正数（kg）','msg.weightNotFound':'未找到有效的体重（正数，kg）',
+  'msg.t0Needed':'检测到 HH:MM 写法的注射时间，请先填写装药时间；或改用“装药后分钟数”写法（如 43）',
+  'msg.t0Format':'装药时间格式应为 HH:MM（如 07:30）',
+  'msg.wrap':'注射时间早于装药时间，已按次日 +24h 处理，请核对数据',
+  'msg.needWeights':'请填写患者体重列表','msg.needT':'请填写总时长（小时/分钟）','msg.negDurT':'总时长不能为负',
+  'msg.badN':'患者人数须为正整数','msg.T0warn':'总时长为 0：所有患者都按装药时间计算，请确认填写正确',
+  'msg.clockIgnored':'已忽略时间列：策略C按等间隔推算。若每人注射时间完整，改用策略A或B更准确。',
+  'msg.useOther':'提示：只有注射时间请改用策略B，只有体重请改用策略C，只有人数与总时长请改用策略D',
+  'msg.hl':'“半衰期”设置无效：请选择预设核素，或在自定义中填写正数',
+  'msg.coeff':'“每例给药活度”系数须为正数（mCi/kg）','msg.qbar':'“每人平均剂量”须为非负数（mCi）',
+  'msg.eta':'安全系数无效：应为非负数','msg.etaLt1':'安全系数应 ≥ 1，当前取值 #v，请确认',
+  'msg.empty':'请输入数据，或点击「填入示例」查看输入格式',
+  'rowN':'第#n行',
+  'desc.patients':'#n 例患者','desc.byWeight':'，每例按体重折算活度（#c #u/kg）','desc.t0':'，装药时间 #v',
+  'desc.minMode':'，按装药后分钟数计算','desc.edited':'（已修改）',
+  'desc.B':'，每人平均剂量 #q #u',
+  'desc.C':'，每例按体重折算活度（#c #u/kg），总时长 #T','desc.D':'，总时长 #T，每人平均剂量 #q #u',
+  'sub.eta':'安全系数 #e',
+  'sum.head':'【放射性药物需求估算 · #s】','sum.input':'输入：','sum.est':'基础估算量（未含安全余量）= #v #u',
+  'sum.rec':'建议装药量（安全系数 #e）= #v #u'
+},
+en: {
+  'app.title':'Radiopharmaceutical Demand Estimator',
+  'howto':'How to use: pick a tab → fill in the data → take the “Recommended loading activity”',
+  'set.isotope':'Nuclide','custom':'Custom',
+  'hl.prefix':'Half-life: ','hl.y':'y','hl.mo':'mo','hl.d':'d','hl.h':'h','hl.mi':'m','hl.s':'s',
+  'coeff.title':'Activity per patient','coeff.pre':'= body weight (kg) × ','coeff.unit':' mCi/kg',
+  'coeff.egpre':'Example: 70 kg × ',
+  'tab.A':'Strategy A · Precise','tab.A.sub':'Needs: injection time + weight per patient',
+  'tab.B':'Strategy B · Mean activity','tab.B.sub':'Needs: injection time per patient',
+  'tab.C':'Strategy C · Mean timing','tab.C.sub':'Needs: weight per patient + total duration',
+  'tab.D':'Strategy D · Rough estimate','tab.D.sub':'Needs: patient count + total duration',
+  'input.h':'Input','result.h':'Results',
+  't0.label':'Loading time','t0.opt.req':'(required for HH:MM)','t0.opt.disp':'(optional, clock display only)',
+  'A.data.label':'Patients (one per line: injection time + weight kg)',
+  'A.data.ph':'Two columns per line, separated by comma / space / Tab; both time styles can be mixed:\n  08:13, 70    ← HH:MM time (requires loading time) + weight kg\n  43, 70       ← minutes after loading + weight kg\nYou can also paste two columns from Excel (time column first)\nActivity is computed from weight by the per-patient formula',
+  'B.data.label':'Injection times (one per line)',
+  'B.data.ph':'One injection time per line; both styles can be mixed:\n  08:13     ← HH:MM (requires loading time)\n  43        ← minutes after loading\nExtra pasted columns are ignored',
+  'C.data.label':'Patient weights (one per line, in injection order, kg)',
+  'C.data.ph':'One weight (kg) per line, in injection order:\n  72\n  58\n  80\n  …\nActivity is computed from weight by the per-patient formula\nIf a “time + weight” table is pasted, the weight column is used',
+  'T.label':'Total duration (loading → last injection)','dur.h':'h','dur.m':'min','dur.phH':'hours','dur.phM':'minutes',
+  'N.label':'Number of patients','qbar.label':'Mean activity per patient','set.unit':'Unit',
+  'btn.example':'Load example','btn.clear':'Clear',
+  'hint.A':'Weights must be positive; patient order does not affect the result. Times only → Strategy B; weights only → Strategy C.',
+  'hint.B':'All patients use the same mean activity, editable under “Mean activity per patient” above; Strategy D syncs with it. The loading time is required only when times are written as HH:MM.',
+  'hint.C':'Strategy C does not know each patient’s actual time, so it assumes an even schedule: patient 1 at the loading time, the last at the total duration, evenly spaced; with a single patient the interval equals the total duration. Loading time is optional and only sets the clock display.',
+  'hint.D':'An even schedule is assumed from the patient count and total duration: patient 1 at the loading time, the last at the total duration. Mean activity syncs with Strategy B. Loading time is optional and only sets the clock display.',
+  'est.note':'Base estimate #v #u (before safety factor)',
+  'eta.label':'Safety factor','eta.reset':'Reset to','eta.src':'Defaults are calibrated on this centre’s historical injection data; other sites should adjust for local practice.',
+  'rec.label':'Recommended loading activity','copy.btn':'Copy summary',
+  'detail.title':'Injection detail',
+  'tbl.time':'Injection time','tbl.plan':'Planned time','tbl.act':'Injected activity','tbl.cal':'At loading time',
+  'tbl.total':'Total',
+  'detail.hint':'“Injected activity” is what each patient receives at the injection moment (weight × per-patient coefficient; mean activity for B/D); “At loading time” converts each dose back to the loading moment, and the rows sum to the base estimate. The chart shows the activity left in the vial, starting from the recommended loading and falling as the activity decays and is injected patient by patient.',
+  'unit.min':'min','unit.h':'h','unit.min2':'min',
+  'foot.disclaimer':'This tool is for estimation reference only and does not constitute medical advice. Actual loading must follow your department’s protocols and physician orders.',
+  'msg.noWeightCol':'missing weight column (kg)','msg.noTimeCol':'missing injection time column',
+  'msg.badTime':'“#v” is not a valid time (HH:MM or minutes after loading)','msg.negT':'injection time cannot be negative',
+  'msg.badWeight':'weight must be a positive number (kg)','msg.weightNotFound':'no valid weight found (positive, kg)',
+  'msg.t0Needed':'HH:MM times detected — please fill the loading time first, or use the “minutes after loading” style (e.g. 43)',
+  'msg.t0Format':'loading time must be HH:MM (e.g. 07:30)',
+  'msg.wrap':'time is before the loading time; treated as next day (+24h) — please verify',
+  'msg.needWeights':'please enter the patient weight list','msg.needT':'please enter the total duration (h/min)','msg.negDurT':'total duration cannot be negative',
+  'msg.badN':'number of patients must be a positive integer','msg.T0warn':'Total duration is 0: every patient is computed at the loading time — please verify',
+  'msg.clockIgnored':'Time column ignored: Strategy C assumes an even schedule. With complete times, Strategy A or B is more accurate.',
+  'msg.useOther':'Tip: times only → Strategy B; weights only → Strategy C; count and duration only → Strategy D',
+  'msg.hl':'Invalid half-life: pick a preset nuclide or enter positive values under Custom',
+  'msg.coeff':'The per-patient coefficient must be positive (mCi/kg)','msg.qbar':'Mean activity per patient must be non-negative (mCi)',
+  'msg.eta':'Invalid safety factor: must be non-negative','msg.etaLt1':'The safety factor should be ≥ 1; current value #v — please verify',
+  'msg.empty':'Enter data, or click “Load example” to see the input format',
+  'rowN':'Row #n',
+  'desc.patients':'#n patients','desc.byWeight':', activity from body weight (#c #u/kg)','desc.t0':', loading time #v',
+  'desc.minMode':', times in minutes after loading','desc.edited':' (edited)',
+  'desc.B':', mean activity #q #u',
+  'desc.C':', activity from body weight (#c #u/kg), total duration #T','desc.D':', total duration #T, mean activity #q #u',
+  'sub.eta':'Safety factor #e',
+  'sum.head':'[Radiopharmaceutical demand estimate · #s]','sum.input':'Input: ','sum.est':'Base estimate (before safety factor) = #v #u',
+  'sum.rec':'Recommended loading activity (safety factor #e) = #v #u'
+}
+};
+function t(k){
+  var d = STR[LANG];
+  return (d && d[k] !== undefined) ? d[k] : (STR.zh[k] !== undefined ? STR.zh[k] : k);
+}
+function tv(k, map){
+  var s = t(k);
+  for (var key in map) s = s.split('#'+key).join(map[key]);
+  return s;
+}
+
+/* ===== 预设核素半衰期（单位：秒，按常用值） ===== */
+var Y = 365.25*86400, D = 86400, H = 3600, MIN = 60;
+var ISOTOPES = [
+  ['C-11',   20.334*MIN],['N-13',    9.965*MIN],['O-15',  122.24],['F-18',  109.77*MIN],
+  ['Na-22',  2.6027*Y],['P-32',  14.268*D],['Sc-47',  3.3492*D],['Co-57', 271.79*D],
+  ['Co-60',  5.2714*Y],['Cu-64', 12.7001*H],['Ga-68',  67.71*MIN],['Ge-68', 270.82*D],
+  ['Rb-82',  1.2735*MIN],['Sr-89', 50.57*D],['Zr-89', 78.41*H],['Y-90',   2.6670*D],
+  ['Mo-99', 65.94*H],['Tc-99m', 6.0066*H],['In-111', 2.8047*D],['I-123', 13.22*H],
+  ['I-124',  4.18*D],['I-125', 59.388*D],['I-131',  8.0252*D],['Sm-153',46.285*H],
+  ['Tb-161', 6.89*D],['Ho-166',26.794*H],['Lu-177', 6.6446*D],['Re-186', 3.7186*D],
+  ['Re-188',17.004*H],['Tl-201', 3.0443*D],['At-211', 7.214*H],['Pb-212',10.64*H],
+  ['Bi-213', 45.59*MIN],['Ra-223',11.436*D],['Ac-225', 9.920*D],['Cs-137',30.05*Y]
+];
+/* 自定义半衰期：年/月/日/时/分/秒（→ 分钟；月按平均月 30.4375 天） */
+var HL_PARTS = [
+  ['hl-y', 365.25*1440], ['hl-mo', 30.4375*1440], ['hl-d', 1440],
+  ['hl-h', 60], ['hl-mi', 1], ['hl-s', 1/60]
+];
+
+/* ===== 活度单位（factor = 该单位折合多少 mCi；dec = 展示小数位） ===== */
+var ACT_UNITS = [
+  ['Bq',  1/3.7e7, 0], ['kBq', 1/3.7e4, 0], ['MBq', 1/37, 1], ['GBq', 1000/37, 3],
+  ['TBq', 1e6/37, 4], ['μCi', 0.001, 1], ['mCi', 1, 2], ['Ci', 1000, 3]
+];
+var ACT_UNIT = localStorage.getItem('fdg-unit') || 'mCi';
+if (!ACT_UNITS.some(function(u){ return u[0] === ACT_UNIT; })) ACT_UNIT = 'mCi';
+function uFactor(){ for (var i = 0; i < ACT_UNITS.length; i++) if (ACT_UNITS[i][0] === ACT_UNIT) return ACT_UNITS[i][1]; return 1; }
+function uDec(){ for (var i = 0; i < ACT_UNITS.length; i++) if (ACT_UNITS[i][0] === ACT_UNIT) return ACT_UNITS[i][2]; return 2; }
+function fmtAct(x){ return fmt(x / uFactor(), uDec()); }   /* 内部 mCi → 展示单位（factor = 1 单位折合的 mCi 数） */
+function fmtDisp(x){ return fmt(x, uDec()); }              /* 已是展示单位的数值 */
+function fmtAdaptive(x){                                    /* 小值自动加位，避免被舍成 0 */
+  var dec = uDec();
+  if (Number.isFinite(x) && x !== 0){
+    var ax = Math.abs(x);
+    var lim = Math.pow(10, -dec);
+    if (ax < lim) dec = Math.min(8, Math.max(dec, -Math.floor(Math.log10(ax)) + 2));
+  }
+  return fmt(x, dec);
+}
+function sigRound(x, n){
+  if (!Number.isFinite(x) || x === 0) return x;
+  var d = Math.ceil(Math.log10(Math.abs(x)));
+  var m = Math.pow(10, n - d);
+  return Math.round(x*m)/m;
+}
+
+var ETA0 = { A:1.00, B:1.07, C:1.15, D:1.21 };
+var NAME = {};
+var WEIGHTS = [72,58,80,65,74,69,83,55,77,61,70,66,88,59,73,64,79,68,85,62,71,75,57,81,67];
+
+var $ = function(id){ return document.getElementById(id); };
+var state = { A:null, B:null, C:null, D:null };
+var activeTab = 'A';
+
+/* ===== 全局参数 ===== */
+function coeffRaw(){ return parseFloat($('set-coeff').value); }
+function coeffVal(){ var v = coeffRaw(); return (Number.isFinite(v) && v > 0) ? v * uFactor() : NaN; }
+function qBarRaw(){ return parseFloat($('B-qbar').value); }
+function qBarVal(){ var v = qBarRaw(); return (Number.isFinite(v) && v >= 0) ? v * uFactor() : NaN; }
+function halfLifeMin(){
+  if ($('set-isotope').value !== '__custom'){
+    var sel = $('set-isotope').value;
+    for (var i = 0; i < ISOTOPES.length; i++) if (ISOTOPES[i][0] === sel) return ISOTOPES[i][1]/60;
+    return NaN;
+  }
+  var total = 0, any = false, ok = true;
+  HL_PARTS.forEach(function(p){
+    var raw = $(p[0]).value.trim();
+    if (raw){
+      any = true;
+      var v = toNum(raw);
+      if (!Number.isFinite(v) || v < 0) ok = false;
+      else total += v * p[1];
+    }
+  });
+  return (any && ok) ? total : NaN;
+}
+function lambda(){ var T = halfLifeMin(); return Number.isFinite(T) ? Math.LN2 / T : NaN; }
+
+/* ===== 工具函数 ===== */
+function fmt(x, d){
+  if (!Number.isFinite(x)) return '—';
+  if (d === undefined) d = 1;
+  return x.toLocaleString(LANG === 'en' ? 'en-US' : 'zh-CN', { minimumFractionDigits:d, maximumFractionDigits:d });
+}
+
+function fmtHL(min){
+  if (!Number.isFinite(min)) return '—';
+  var uD = LANG === 'en' ? 'd' : '天', uH = LANG === 'en' ? 'h' : '小时',
+      uM = LANG === 'en' ? 'min' : '分钟', uS = LANG === 'en' ? 's' : '秒';
+  if (min >= 2*365.25*1440) return fmt(min/(365.25*1440), 2) + ' ' + t('hl.y');
+  if (min >= 2*1440) return fmt(min/1440, 2) + ' ' + uD;
+  if (min >= 2*60) return fmt(min/60, 2) + ' ' + uH;
+  if (min >= 2) return fmt(min, 2) + ' ' + uM;
+  return fmt(min*60, 2) + ' ' + uS;
+}
+function fmtClock(min){
+  var m = ((Math.round(min) % 1440) + 1440) % 1440;
+  var h = Math.floor(m/60), mm = m % 60;
+  return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm;
+}
+function fmtRel(min){
+  var frac = Math.abs(min - Math.round(min)) > 1e-9;
+  if (min < 60) return '+' + (frac ? min.toFixed(1) : Math.round(min)) + ' ' + t('unit.min');
+  var h = Math.floor(min/60), m = min - h*60;
+  return '+' + h + ' ' + t('unit.h') + ' ' + (frac ? (Math.round(m*10)/10) : Math.round(m)) + ' ' + t('unit.min2');
+}
+function fmtDur(min){
+  if (!Number.isFinite(min)) return '—';
+  var frac = Math.abs(min - Math.round(min)) > 1e-9;
+  if (min < 60) return (frac ? min.toFixed(1) : Math.round(min)) + ' ' + t('unit.min');
+  var h = Math.floor(min/60), m = min - h*60;
+  var mTxt = frac ? (Math.round(m*10)/10) : Math.round(m);
+  var totTxt = frac ? min.toFixed(1) : Math.round(min);
+  return h + ' ' + t('unit.h') + ' ' + mTxt + ' ' + t('unit.min2') + ' (' + totTxt + ' ' + t('unit.min') + ')';
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function norm(s){ return s.replace(/，/g,',').replace(/；/g,';').replace(/：/g,':'); }
+function isClock(tok){ return /^\d{1,3}:\d{1,2}(:\d{1,2})?$/.test(tok); }
+function toNum(tok){ var v = parseFloat(tok); return Number.isFinite(v) ? v : NaN; }
+function t0Minutes(str){
+  str = (str || '').trim();
+  if (!str) return null;
+  var m = norm(str).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return NaN;
+  var v = parseInt(m[1],10)*60 + parseInt(m[2],10) + (m[3] ? parseInt(m[3],10)/60 : 0);
+  return v < 1440 ? v : NaN;
+}
+function splitTokens(line){ return norm(line).trim().split(/[\s,;]+/).filter(Boolean); }
+function rowLabel(n){ return tv('rowN', { n:n }); }
+function durMinutes(s){
+  var hIn = $(s+'-Th').value.trim(), mIn = $(s+'-Tm').value.trim();
+  if (!hIn && !mIn) return NaN;
+  var h = hIn ? toNum(hIn) : 0;
+  var m = mIn ? toNum(mIn) : 0;
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0) return NaN;
+  return h*60 + m;
+}
+
+function parseTimeInto(tok, t0, warns, errs, label){
+  if (isClock(tok)){
+    if (t0 === null){ errs.push(label + ': ' + t('msg.t0Needed')); return null; }
+    var p = tok.split(':').map(Number);
+    var clock = p[0]*60 + p[1] + (p[2]||0)/60;
+    var tt = clock - t0;
+    if (tt < -1e-9){ tt += 1440; warns.push(label + ': ' + t('msg.wrap')); }
+    return tt;
+  }
+  var v = toNum(tok);
+  if (!Number.isFinite(v)){ errs.push(label + ': ' + tv('msg.badTime', { v:tok })); return null; }
+  if (v < 0){ errs.push(label + ': ' + t('msg.negT')); return null; }
+  return v;
+}
+
+/* ===== 四种策略的估算（明细显示逐例注射活度；基础估算量内部已折算到装药时刻） ===== */
+
+function computeA(text, t0, c){
+  var warns=[], errs=[], rows=[], est=0, colErrs=0;
+  var lam = lambda();
+  var lines = text.split(/\r?\n/);
+  if (t0 === null && lines.some(function(l){ return splitTokens(l).some(isClock); }))
+    return { rows:[], warns:[], errs:[t('msg.t0Needed')], est:0, n:0 };
+  lines.forEach(function(line, idx){
+    if (!line.trim()) return;
+    var label = rowLabel(idx+1);
+    var toks = splitTokens(line);
+    if (!toks.length) return;
+    if (toks.length < 2){
+      errs.push(label + ': ' + (isClock(toks[0]) ? t('msg.noWeightCol') : t('msg.noTimeCol')));
+      colErrs++;
+      return;
+    }
+    var tt = parseTimeInto(toks[0], t0, warns, errs, label);
+    if (tt === null) return;
+    var w = toNum(toks[toks.length-1]);
+    if (!(w > 0)){ errs.push(label + ': ' + t('msg.badWeight')); return; }
+    var act = c*w;
+    var con = act*Math.exp(lam*tt);
+    rows.push({ n:rows.length+1, t:tt, act:act, c:con });
+    est += con;
+  });
+  if (colErrs > 0 && colErrs === errs.length && !rows.length) errs.push(t('msg.useOther'));
+  return { rows:rows, warns:warns, errs:errs, est:est, n:rows.length };
+}
+
+function computeB(text, t0, qbar){
+  var warns=[], errs=[], rows=[], est=0;
+  var lam = lambda();
+  var lines = text.split(/\r?\n/);
+  if (t0 === null && lines.some(function(l){ return splitTokens(l).some(isClock); }))
+    return { rows:[], warns:[], errs:[t('msg.t0Needed')], est:0, n:0 };
+  lines.forEach(function(line, idx){
+    if (!line.trim()) return;
+    var label = rowLabel(idx+1);
+    var toks = splitTokens(line);
+    if (!toks.length) return;
+    var tt = parseTimeInto(toks[0], t0, warns, errs, label);
+    if (tt === null) return;
+    var con = qbar*Math.exp(lam*tt);
+    rows.push({ n:rows.length+1, t:tt, act:qbar, c:con });
+    est += con;
+  });
+  return { rows:rows, warns:warns, errs:errs, est:est, n:rows.length };
+}
+
+function computeC(text, T, c){
+  var warns=[], errs=[], hints=[], weights=[], sawClock=false;
+  var lam = lambda();
+  var lines = text.split(/\r?\n/);
+  lines.forEach(function(line, idx){
+    if (!line.trim()) return;
+    var toks = splitTokens(line);
+    if (!toks.length) return;
+    if (toks.some(isClock)) sawClock = true;
+    var w = NaN;
+    for (var j = toks.length-1; j >= 0; j--){
+      if (isClock(toks[j])) continue;
+      var v = toNum(toks[j]);
+      if (Number.isFinite(v)){ w = v; break; }
+    }
+    if (!(w > 0)){ errs.push(rowLabel(idx+1) + ': ' + t('msg.weightNotFound')); return; }
+    weights.push(w);
+  });
+  if (sawClock) hints.push(t('msg.clockIgnored'));
+  var N = weights.length;
+  var plans = [];
+  if (N === 1) plans = [T];
+  else for (var i = 0; i < N; i++) plans.push(i*T/(N-1));
+  var rows=[], est=0;
+  for (var k = 0; k < N; k++){
+    var act = c*weights[k];
+    var con = act*Math.exp(lam*plans[k]);
+    rows.push({ n:k+1, t:plans[k], act:act, c:con });
+    est += con;
+  }
+  if (N > 1 && T === 0) warns.push(t('msg.T0warn'));
+  return { rows:rows, warns:warns, errs:errs, hints:hints, est:est, n:N };
+}
+
+function computeD(N, T, qbar){
+  var warns=[], rows=[], est=0;
+  var lam = lambda();
+  var plans = [];
+  if (N === 1) plans = [T];
+  else for (var i = 0; i < N; i++) plans.push(i*T/(N-1));
+  for (var k = 0; k < N; k++){
+    var con = qbar*Math.exp(lam*plans[k]);
+    rows.push({ n:k+1, t:plans[k], act:qbar, c:con });
+    est += con;
+  }
+  if (N > 1 && T === 0) warns.push(t('msg.T0warn'));
+  return { rows:rows, warns:warns, est:est, n:N };
+}
+
+/* ===== 核素下拉 ===== */
+function initIsotopeSelect(){
+  var sel = $('set-isotope');
+  var html = '<option value="__custom">' + t('custom') + '</option>';
+  ISOTOPES.forEach(function(it){
+    html += '<option value="'+it[0]+'"'+(it[0]==='F-18'?' selected':'')+'>'+it[0]+'</option>';
+  });
+  sel.innerHTML = html;
+}
+function initUnitSelect(){
+  var html = '';
+  ACT_UNITS.forEach(function(u){
+    html += '<option value="'+u[0]+'"'+(u[0]===ACT_UNIT?' selected':'')+'>'+u[0]+'</option>';
+  });
+  $('set-unit').innerHTML = html;
+}
+function renderIsotopeCard(){
+  var custom = $('set-isotope').value === '__custom';
+  $('hl-custom').style.display = custom ? 'inline-flex' : 'none';
+  $('hl-inline').style.display = custom ? 'none' : '';
+  $('set-isotope').style.width = custom ? '110px' : '118px';
+  if (!custom) $('hl-inline').textContent = t('hl.prefix') + fmtHL(halfLifeMin());
+  HL_PARTS.forEach(function(p){
+    var raw = $(p[0]).value.trim();
+    var badSelf = false;
+    if (raw){
+      var v = toNum(raw);
+      if (!Number.isFinite(v) || v < 0) badSelf = true;
+    }
+    $(p[0]).classList.toggle('invalid', custom && badSelf);
+  });
+}
+
+/* ===== 页头参数校验 ===== */
+function settingsMsg(){
+  var msgs = [];
+  var hlOK = Number.isFinite(halfLifeMin());
+  var cOK = Number.isFinite(coeffVal());
+  var qbOK = Number.isFinite(qBarVal());
+  $('set-coeff').classList.toggle('invalid', !cOK);
+  ['B-qbar','D-qbar'].forEach(function(id){ $(id).classList.toggle('invalid', !qbOK); });
+  if (!hlOK) msgs.push(t('msg.hl'));
+  if (!cOK) msgs.push(t('msg.coeff'));
+  if (!qbOK) msgs.push(t('msg.qbar'));
+  $('set-msg').innerHTML = msgs.map(function(m){ return '<div class="box err">'+esc(m)+'</div>'; }).join('');
+  return { hlOK:hlOK, cOK:cOK, qbOK:qbOK };
+}
+
+/* ===== 消息与注射明细 ===== */
+function setMsg(s, errs, warns, hints, neutral){
+  var box = $(s+'-msg');
+  var html = '';
+  errs.forEach(function(e){ html += '<div class="box err">'+esc(e)+'</div>'; });
+  warns.forEach(function(w){ html += '<div class="box warn">'+esc(w)+'</div>'; });
+  hints.forEach(function(h){ html += '<div class="box hintb">'+esc(h)+'</div>'; });
+  if (neutral) html += '<div class="box neutral">'+esc(neutral)+'</div>';
+  box.innerHTML = html;
+}
+
+function renderDetail(){
+  var sec = $('detail-card');
+  var st = state[activeTab];
+  if (!st || !st.rows || !st.rows.length){ sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  $('detail-title').textContent = NAME[activeTab] + ' · ' + t('detail.title');
+  var t0 = st.t0;
+  var html = '<table><thead><tr><th>#</th><th>' + esc(st.tLabel) + '</th><th>' + esc(t('tbl.act')) + ' (' + ACT_UNIT + ')</th><th>' + esc(t('tbl.cal')) + ' (' + ACT_UNIT + ')</th></tr></thead><tbody>';
+  st.rows.forEach(function(r){
+    var tTxt = (t0 === null || Number.isNaN(t0)) ? fmtRel(r.t) : fmtClock(t0 + r.t);
+    html += '<tr><td>'+r.n+'</td><td>'+tTxt+'</td><td>'+fmtAct(r.act)+'</td><td>'+fmtAct(r.c)+'</td></tr>';
+  });
+  /* 合计行 = 结果区的基础估算量，让用户看清最后一列是怎么加起来的 */
+  html += '</tbody><tfoot><tr><td colspan="3">' + esc(t('tbl.total')) + '</td><td>' + fmtAct(st.est) + '</td></tr></tfoot></table>';
+  $('detail-table').innerHTML = html;
+  renderChart(st);
+}
+
+/* 瓶内剩余活度曲线：从建议装药量起，随衰变连续下降、每例注射瞬间下降 */
+function niceStep(x){
+  if (!Number.isFinite(x) || x <= 0) return 1;
+  var mag = Math.pow(10, Math.floor(Math.log10(x)));
+  var n = x/mag;
+  return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * mag;
+}
+function fmtAxis(v){                       /* v 为内部 mCi，需换算成当前展示单位 */
+  var loc = LANG === 'en' ? 'en-US' : 'zh-CN';
+  return Number((v / uFactor()).toFixed(uDec())).toLocaleString(loc);
+}
+function renderChart(st){
+  var box = $('detail-chart');
+  if (!st || !st.rows || !st.rows.length){ box.innerHTML = ''; return; }
+  var rows = st.rows, t0 = st.t0, N = rows.length;
+  var L0 = st.rec;                        /* 起始：建议装药量 = 安全系数 × 基础估算量 */
+  var lam = lambda();
+  var tail = 30;                          /* 末例后再看 30 分钟的衰变 */
+  var tEnd = rows[N-1].t + tail;
+  var W = 460, H = 330, R = 16, T = 30, B = 38;
+  var maxV = L0*1.06;
+  var step = niceStep(maxV/4), yTicks = [], maxLab = 0, vv;
+  for (vv = 0; vv <= maxV + 1e-9; vv += step){
+    yTicks.push(vv);
+    maxLab = Math.max(maxLab, fmtAxis(vv).length);
+  }
+  /* 左边距随 y 轴标签长度自适应，切换单位后长数字不会压进画布 */
+  var Lm = Math.max(48, Math.round(16 + maxLab*6.6));
+  var pw = W-Lm-R, ph = H-T-B;
+  function X(t){ return Lm + t/tEnd*pw; }
+  function Y(v){ return T + ph - Math.max(0, v)/maxV*ph; }
+  /* 采样：衰变段连续下降，注射点瞬时下降；剩余不为负（不足即触底） */
+  var pts = [[0, L0]];
+  var Rcur = L0, tPrev = 0, SEG = 8, k, tt;
+  rows.forEach(function(r){
+    for (k = 1; k <= SEG; k++){
+      tt = tPrev + (r.t - tPrev)*k/SEG;
+      pts.push([tt, Rcur*Math.exp(-lam*(tt - tPrev))]);
+    }
+    Rcur = Math.max(0, Rcur*Math.exp(-lam*(r.t - tPrev)) - r.act);
+    pts.push([r.t, Rcur]);
+    tPrev = r.t;
+  });
+  for (k = 1; k <= 6; k++){
+    tt = tPrev + tail*k/6;
+    pts.push([tt, Rcur*Math.exp(-lam*(tt - tPrev))]);
+  }
+  var svg = '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img">';
+  yTicks.forEach(function(v){
+    var yy = Y(v);
+    svg += '<line x1="'+Lm+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="#e7edf4" stroke-width="1"/>';
+    svg += '<text x="'+(Lm-8)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#8b99ab">'+fmtAxis(v)+'</text>';
+  });
+  svg += '<text x="'+Lm+'" y="'+(T-10)+'" font-size="11" fill="#8b99ab">'+esc(ACT_UNIT)+'</text>';
+  var xstep = Math.max(1, Math.ceil(N/5));
+  for (var i = 0; i < N; i += xstep){
+    var xx = X(rows[i].t);
+    var lbl = (t0 === null || Number.isNaN(t0)) ? String(Math.round(rows[i].t)) : fmtClock(t0 + rows[i].t);
+    svg += '<text x="'+xx+'" y="'+(T+ph+16)+'" text-anchor="middle" font-size="11" fill="#8b99ab">'+lbl+'</text>';
+  }
+  var ptsStr = pts.map(function(p){ return X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1); }).join(' ');
+  svg += '<polyline points="'+ptsStr+'" fill="none" stroke="#17539e" stroke-width="2"/>';
+  svg += '<line x1="'+Lm+'" y1="'+(T+ph)+'" x2="'+(W-R)+'" y2="'+(T+ph)+'" stroke="#cfd9e6" stroke-width="1"/>';
+  svg += '</svg>';
+  box.innerHTML = svg;
+}
+
+
+function resetPanel(s){
+  $(s+'-rec').textContent='—';
+  $(s+'-est-sub').textContent=''; $(s+'-rec-sub').textContent='';
+}
+
+function renderPanel(s){
+  var st = settingsMsg();
+  var warns=[], errs=[], hints=[];
+  var est=NaN, rows=[], n=0, desc='', T=NaN, t0=null, t0str='';
+  var empty = false;
+
+  if (!st.hlOK){ resetPanel(s); setMsg(s, [t('msg.hl')], [], []); state[s]=null; renderDetail(); return; }
+
+  if (s==='A' || s==='B'){
+    t0 = t0Minutes($(s+'-t0').value);
+    $(s+'-t0').classList.toggle('invalid', Number.isNaN(t0));
+    t0str = $(s+'-t0').value.trim() || '';
+    var text = $(s+'-data').value;
+    if (!text.trim()){ empty = true; }
+    else if (Number.isNaN(t0)){ errs.push(t('msg.t0Format')); }
+    else if (s==='A'){
+      if (!st.cOK){ resetPanel(s); setMsg(s, [t('msg.coeff')], [], []); state[s]=null; renderDetail(); return; }
+      var r = computeA(text, t0, coeffVal()); rows=r.rows; warns=r.warns; errs=r.errs; est=r.est; n=r.n;
+    }
+    else {
+      if (!st.qbOK){ resetPanel(s); setMsg(s, [t('msg.qbar')], [], []); state[s]=null; renderDetail(); return; }
+      var rb = computeB(text, t0, qBarVal()); rows=rb.rows; warns=rb.warns; errs=rb.errs; est=rb.est; n=rb.n;
+    }
+    desc = tv('desc.patients', { n:n });
+    if (s==='A') desc += tv('desc.byWeight', { c:fmtDisp(coeffRaw()), u:ACT_UNIT });
+    else desc += tv('desc.B', { q:fmtDisp(qBarRaw()), u:ACT_UNIT });
+    desc += t0str ? tv('desc.t0', { v:t0str }) : t('desc.minMode');
+  }
+  else if (s==='C'){
+    t0 = t0Minutes($('C-t0').value);
+    $('C-t0').classList.toggle('invalid', Number.isNaN(t0));
+    t0str = $('C-t0').value.trim() || '';
+    T = durMinutes('C');
+    var textC = $('C-data').value;
+    if (!textC.trim() && !Number.isFinite(T)){ empty = true; }
+    else {
+      if (!textC.trim()) errs.push(t('msg.needWeights'));
+      if (Number.isNaN(t0)) errs.push(t('msg.t0Format'));
+      if (!Number.isFinite(T)) errs.push(t('msg.needT'));
+      else if (T < 0) errs.push(t('msg.negDurT'));
+      if (!st.cOK) errs.push(t('msg.coeff'));
+    }
+    if (!errs.length){
+      var rc = computeC(textC, T, coeffVal());
+      rows=rc.rows; warns=rc.warns; hints=rc.hints; est=rc.est; n=rc.n;
+    }
+    desc = tv('desc.patients', { n:n })
+      + tv('desc.C', { c:fmtDisp(coeffRaw()), u:ACT_UNIT, T:fmtDur(T) })
+      + (t0str ? tv('desc.t0', { v:t0str }) : '');
+  }
+  else {
+    t0 = t0Minutes($('D-t0').value);
+    $('D-t0').classList.toggle('invalid', Number.isNaN(t0));
+    t0str = $('D-t0').value.trim() || '';
+    var Nv = toNum($('D-N').value);
+    T = durMinutes('D');
+    if (!String($('D-N').value).trim() && !Number.isFinite(T)) empty = true;
+    else {
+      if (!Number.isFinite(Nv) || Nv < 1 || Nv !== Math.round(Nv)) errs.push(t('msg.badN'));
+      if (!Number.isFinite(T)) errs.push(t('msg.needT'));
+      else if (T < 0) errs.push(t('msg.negDurT'));
+      if (Number.isNaN(t0)) errs.push(t('msg.t0Format'));
+      if (!st.qbOK) errs.push(t('msg.qbar'));
+      if (!errs.length){
+        var rd = computeD(Math.round(Nv), T, qBarVal());
+        rows=rd.rows; warns=rd.warns; est=rd.est; n=rd.n;
+      }
+    }
+    desc = tv('desc.patients', { n:Number.isFinite(Nv)?Math.round(Nv):0 })
+      + tv('desc.D', { T:fmtDur(T), q:fmtDisp(qBarRaw()), u:ACT_UNIT });
+  }
+
+  var recEl=$(s+'-rec'), estSub=$(s+'-est-sub'), recSub=$(s+'-rec-sub');
+  if (empty){
+    resetPanel(s);
+    setMsg(s, [], [], [], t('msg.empty'));
+    state[s]=null; renderDetail();
+    return;
+  }
+  if (errs.length){
+    resetPanel(s);
+    setMsg(s, errs, warns, hints);
+    state[s]=null; renderDetail();
+    return;
+  }
+
+  estSub.textContent = tv('est.note', { v:fmtAct(est), u:ACT_UNIT });
+
+  var eta = toNum($(s+'-eta').value);
+  if (!Number.isFinite(eta) || eta < 0){
+    setMsg(s, [t('msg.eta')], warns, hints);
+    recEl.textContent='—'; recSub.textContent='';
+    state[s]=null; renderDetail();
+    return;
+  }
+  if (eta < 1) warns.push(tv('msg.etaLt1', { v:eta }));
+  var rec = eta * est;
+  recEl.textContent = fmtAct(rec);
+  recSub.textContent = desc + ' · ' + tv('sub.eta', { e:eta.toFixed(2) })
+    + (Math.abs(eta-ETA0[s])>1e-9 ? t('desc.edited') : '');
+
+  setMsg(s, [], warns, hints);
+  var tLabel = (s==='C'||s==='D') ? t('tbl.plan') : t('tbl.time');
+  state[s] = { est:est, rec:rec, eta:eta, n:n, desc:desc, rows:rows, t0:(Number.isNaN(t0)?null:t0), tLabel:tLabel };
+}
+
+function render(){
+  renderIsotopeCard();
+  var raw = coeffRaw();
+  $('fb-coeff').textContent = Number.isFinite(raw) ? String(raw) : '—';
+  $('fb-eg').textContent = Number.isFinite(raw) ? fmtAdaptive(raw*70) : '—';
+  document.getElementById('coeff-unit').textContent = ' ' + ACT_UNIT + '/kg';
+  var egUnit = document.querySelector('.fb-eg-unit');
+  if (egUnit) egUnit.textContent = ' ' + ACT_UNIT;
+  document.querySelectorAll('.qbar-unit').forEach(function(el){ el.textContent = ACT_UNIT; });
+  document.querySelectorAll('.act-unit').forEach(function(el){ el.textContent = ACT_UNIT; });
+  ['A','B','C','D'].forEach(renderPanel);
+  renderDetail();
+}
+
+/* ===== 多语言应用 ===== */
+function applyLang(){
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.title = t('app.title');
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ el.innerHTML = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = t(el.getAttribute('data-i18n-ph')); });
+  document.querySelectorAll('[data-reset-eta]').forEach(function(btn){
+    var s = btn.getAttribute('data-reset-eta');
+    btn.textContent = t('eta.reset') + ' ' + ETA0[s].toFixed(2);
+  });
+  document.querySelectorAll('.lang-switch button').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-lang') === LANG);
+  });
+  NAME.A = t('tab.A'); NAME.B = t('tab.B'); NAME.C = t('tab.C'); NAME.D = t('tab.D');
+}
+
+/* ===== 示例数据 ===== */
+function exampleFor(s){
+  var clocks = WEIGHTS.map(function(_, i){ return 450 + 10 + 13*i; });
+  if (s==='A') return { t0:'07:30', data: clocks.map(function(c0,i){ return fmtClock(c0)+', '+WEIGHTS[i]; }).join('\n') };
+  if (s==='B') return { t0:'07:30', data: clocks.map(fmtClock).join('\n') };
+  if (s==='C') return { t0:'07:30', Th:'5', Tm:'22', data: WEIGHTS.join('\n') };
+  return { t0:'07:30', N:'25', Th:'5', Tm:'22' };
+}
+function fillExample(s){
+  var ex = exampleFor(s);
+  if (s==='A' || s==='B'){ $(s+'-t0').value = ex.t0; $(s+'-data').value = ex.data; }
+  else if (s==='C'){ $('C-t0').value = ex.t0; $('C-Th').value = ex.Th; $('C-Tm').value = ex.Tm; $('C-data').value = ex.data; }
+  else { $('D-t0').value = ex.t0; $('D-N').value = ex.N; $('D-Th').value = ex.Th; $('D-Tm').value = ex.Tm; }
+  render();
+}
+function clearPanel(s){
+  if (s==='A' || s==='B' || s==='C') $(s+'-data').value = '';
+  if (s==='C' || s==='D'){ $(s+'-Th').value=''; $(s+'-Tm').value=''; }
+  if (s==='D') $('D-N').value='';
+  render();
+}
+
+/* ===== 复制摘要 ===== */
+function summaryText(s){
+  var st = state[s];
+  if (!st) return '';
+  return [
+    tv('sum.head', { s:NAME[s] }),
+    t('sum.input') + st.desc,
+    tv('sum.est', { v:fmtAct(st.est), u:ACT_UNIT }),
+    tv('sum.rec', { e:st.eta.toFixed(2), v:fmtAct(st.rec), u:ACT_UNIT })
+  ].join('\n');
+}
+function copySummary(s, btn){
+  var text = summaryText(s);
+  if (!text) return;
+  function ok(){ btn.textContent = LANG==='en' ? 'Copied ✓' : '已复制 ✓'; setTimeout(function(){ btn.textContent = t('copy.btn'); }, 1500); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(ok, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); ok(); }catch(e){}
+    document.body.removeChild(ta);
+  }
+}
+
+/* ===== 事件绑定 ===== */
+document.getElementById('tabs').addEventListener('click', function(ev){
+  var btn = ev.target.closest('button[data-tab]');
+  if (!btn) return;
+  activeTab = btn.dataset.tab;
+  document.querySelectorAll('#tabs button').forEach(function(b){ b.classList.toggle('active', b===btn); });
+  document.querySelectorAll('section.panel').forEach(function(p){ p.classList.toggle('active', p.id==='panel-'+activeTab); });
+  renderDetail();
+});
+document.body.addEventListener('click', function(ev){
+  var el = ev.target;
+  var ex = el.closest && el.closest('[data-example]');
+  if (ex){ fillExample(ex.dataset.example); return; }
+  var cl = el.closest && el.closest('[data-clear]');
+  if (cl){ clearPanel(cl.dataset.clear); return; }
+  var rs = el.closest && el.closest('[data-reset-eta]');
+  if (rs){ $(rs.dataset.resetEta+'-eta').value = ETA0[rs.dataset.resetEta].toFixed(2); render(); return; }
+  var cp = el.closest && el.closest('[data-copy]');
+  if (cp){ copySummary(cp.dataset.copy, cp); return; }
+  var lg = el.closest && el.closest('.lang-switch button');
+  if (lg){
+    LANG = lg.getAttribute('data-lang');
+    localStorage.setItem('fdg-lang', LANG);
+    applyLang();
+    render();
+    return;
+  }
+});
+document.body.addEventListener('input', function(ev){
+  if (ev.target && ev.target.classList && ev.target.classList.contains('qbar-sync')){
+    var v = ev.target.value;
+    document.querySelectorAll('.qbar-sync').forEach(function(el){ if (el !== ev.target) el.value = v; });
+  }
+  render();
+});
+$('set-unit').addEventListener('change', function(){
+  var newU = this.value;
+  if (newU === ACT_UNIT) return;
+  var oldF = uFactor();
+  var newF = ACT_UNITS.filter(function(u){ return u[0] === newU; })[0][1];
+  ['set-coeff','B-qbar','D-qbar'].forEach(function(id){
+    var el = $(id), v = parseFloat(el.value);
+    if (Number.isFinite(v)) el.value = sigRound(v * oldF / newF, 6);
+  });
+  ACT_UNIT = newU;
+  localStorage.setItem('fdg-unit', ACT_UNIT);
+  render();
+});
+document.body.addEventListener('change', render);
+
+initIsotopeSelect();
+initUnitSelect();
+applyLang();
+render();
+})();
+</script>
+</body>
+</html>
