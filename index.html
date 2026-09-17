@@ -42,8 +42,8 @@
     box-shadow:var(--shadow); padding:14px 18px; flex:1 1 0; min-width:280px;
     display:flex; flex-direction:column; gap:8px;
   }
-  .setting-compact{flex:0 1 auto; min-width:250px}
-  .setting-main{flex:1 1 0; min-width:300px}
+  /* 两张参数卡 flex-basis 相同 → 等宽；配合父级 stretch 也就等高 */
+  .setting-compact,.setting-main{flex:1 1 0; min-width:280px}
   .setting>label{font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.6px}
   .lbl-in{font-size:12.5px; font-weight:700; color:var(--muted); white-space:nowrap}
   .ctrl{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
@@ -93,9 +93,8 @@
   /* ===== 主体布局：输入列与结果列等宽等高 ===== */
   .panel-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch}
   @media (max-width:920px){
+    /* 窄屏：单列并保持「输入 → 结果」的自然先后，结果不提前出现 */
     .panel-grid{grid-template-columns:1fr}
-    /* 窄屏：结果卡置顶并吸顶，避免在长输入框里填完后还要往下翻才看到结论 */
-    .panel-grid>.card:nth-child(2){order:-1; position:sticky; top:0; z-index:3}
   }
   /* 页签单行需 695px 以上才放得下；不足时排成 2×2，四个策略一屏可见 */
   @media (max-width:760px){
@@ -277,7 +276,7 @@
         <div class="result-sub est-note" id="A-est-sub"></div>
       </div>
       <div class="field eta-field">
-        <label for="A-eta" data-i18n="eta.label">安全系数</label>
+        <label for="A-eta" data-i18n="eta.label">基础安全系数</label>
         <div class="btnrow" style="margin:0">
           <input type="number" id="A-eta" step="0.01" min="0" value="1.00">
           <button class="btn tiny ghost" data-reset-eta="A"></button>
@@ -324,7 +323,7 @@
         <div class="result-sub est-note" id="B-est-sub"></div>
       </div>
       <div class="field eta-field">
-        <label for="B-eta" data-i18n="eta.label">安全系数</label>
+        <label for="B-eta" data-i18n="eta.label">基础安全系数</label>
         <div class="btnrow" style="margin:0">
           <input type="number" id="B-eta" step="0.01" min="0" value="1.07">
           <button class="btn tiny ghost" data-reset-eta="B"></button>
@@ -374,7 +373,7 @@
         <div class="result-sub est-note" id="C-est-sub"></div>
       </div>
       <div class="field eta-field">
-        <label for="C-eta" data-i18n="eta.label">安全系数</label>
+        <label for="C-eta" data-i18n="eta.label">基础安全系数</label>
         <div class="btnrow" style="margin:0">
           <input type="number" id="C-eta" step="0.01" min="0" value="1.15">
           <button class="btn tiny ghost" data-reset-eta="C"></button>
@@ -430,7 +429,7 @@
         <div class="result-sub est-note" id="D-est-sub"></div>
       </div>
       <div class="field eta-field">
-        <label for="D-eta" data-i18n="eta.label">安全系数</label>
+        <label for="D-eta" data-i18n="eta.label">基础安全系数</label>
         <div class="btnrow" style="margin:0">
           <input type="number" id="D-eta" step="0.01" min="0" value="1.21">
           <button class="btn tiny ghost" data-reset-eta="D"></button>
@@ -493,7 +492,7 @@ zh: {
   'hint.C':'策略C不知道每人具体的注射时间，改用等间隔推算：第 1 例按装药时间、最后一例落在总时长处，中间等间隔；只有 1 位患者时间隔等于总时长。装药时间选填，仅用于显示钟表时刻。',
   'hint.D':'按人数和总时长做等间隔推算：第 1 例按装药时间、最后一例落在总时长处。每人平均剂量与策略B自动同步。装药时间选填，仅用于显示钟表时刻。',
   'est.note':'其中基础估算量 #v #u（未含安全余量）',
-  'eta.label':'安全系数','eta.reset':'恢复内置','eta.src':'默认值由本中心历史注射数据校准，其他单位请按自身情况调整。',
+  'eta.label':'基础安全系数','eta.reset':'恢复内置','eta.src':'默认值由本中心历史注射数据校准，其他单位请按自身情况调整。',
   'rec.label':'建议装药量','copy.btn':'复制结果摘要',
   'detail.title':'注射明细',
   'tbl.time':'注射时间','tbl.plan':'计划注射时间','tbl.act':'注射活度','tbl.cal':'折合到装药时',
@@ -513,16 +512,16 @@ zh: {
   'msg.useOther':'提示：只有注射时间请改用策略B，只有体重请改用策略C，只有人数与总时长请改用策略D',
   'msg.hl':'“半衰期”设置无效：请选择预设核素，或在自定义中填写正数',
   'msg.coeff':'“每例给药活度”系数须为正数（mCi/kg）','msg.qbar':'“每人平均剂量”须为非负数（mCi）',
-  'msg.eta':'安全系数无效：应为非负数','msg.etaLt1':'安全系数应 ≥ 1，当前取值 #v，请确认',
+  'msg.eta':'基础安全系数无效：应为非负数','msg.etaLt1':'基础安全系数应 ≥ 1，当前取值 #v，请确认',
   'msg.empty':'请输入数据，或点击「填入示例」查看输入格式',
   'rowN':'第#n行',
   'desc.patients':'#n 例患者','desc.byWeight':'，每例按体重折算活度（#c #u/kg）','desc.t0':'，装药时间 #v',
   'desc.minMode':'，按装药后分钟数计算','desc.edited':'（已修改）',
   'desc.B':'，每人平均剂量 #q #u',
   'desc.C':'，每例按体重折算活度（#c #u/kg），总时长 #T','desc.D':'，总时长 #T，每人平均剂量 #q #u',
-  'sub.eta':'安全系数 #e',
+  'sub.eta':'基础安全系数 #e',
   'sum.head':'【放射性药物需求估算 · #s】','sum.input':'输入：','sum.est':'基础估算量（未含安全余量）= #v #u',
-  'sum.rec':'建议装药量（安全系数 #e）= #v #u'
+  'sum.rec':'建议装药量（基础安全系数 #e）= #v #u'
 },
 en: {
   'app.title':'Radiopharmaceutical Demand Estimator',
@@ -551,7 +550,7 @@ en: {
   'hint.C':'Strategy C does not know each patient’s actual time, so it assumes an even schedule: patient 1 at the loading time, the last at the total duration, evenly spaced; with a single patient the interval equals the total duration. Loading time is optional and only sets the clock display.',
   'hint.D':'An even schedule is assumed from the patient count and total duration: patient 1 at the loading time, the last at the total duration. Mean activity syncs with Strategy B. Loading time is optional and only sets the clock display.',
   'est.note':'Base estimate #v #u (before safety factor)',
-  'eta.label':'Safety factor','eta.reset':'Reset to','eta.src':'Defaults are calibrated on this centre’s historical injection data; other sites should adjust for local practice.',
+  'eta.label':'Base safety factor','eta.reset':'Reset to','eta.src':'Defaults are calibrated on this centre’s historical injection data; other sites should adjust for local practice.',
   'rec.label':'Recommended loading activity','copy.btn':'Copy summary',
   'detail.title':'Injection detail',
   'tbl.time':'Injection time','tbl.plan':'Planned time','tbl.act':'Injected activity','tbl.cal':'At loading time',
@@ -571,16 +570,16 @@ en: {
   'msg.useOther':'Tip: times only → Strategy B; weights only → Strategy C; count and duration only → Strategy D',
   'msg.hl':'Invalid half-life: pick a preset nuclide or enter positive values under Custom',
   'msg.coeff':'The per-patient coefficient must be positive (mCi/kg)','msg.qbar':'Mean activity per patient must be non-negative (mCi)',
-  'msg.eta':'Invalid safety factor: must be non-negative','msg.etaLt1':'The safety factor should be ≥ 1; current value #v — please verify',
+  'msg.eta':'Invalid base safety factor: must be non-negative','msg.etaLt1':'The base safety factor should be ≥ 1; current value #v — please verify',
   'msg.empty':'Enter data, or click “Load example” to see the input format',
   'rowN':'Row #n',
   'desc.patients':'#n patients','desc.byWeight':', activity from body weight (#c #u/kg)','desc.t0':', loading time #v',
   'desc.minMode':', times in minutes after loading','desc.edited':' (edited)',
   'desc.B':', mean activity #q #u',
   'desc.C':', activity from body weight (#c #u/kg), total duration #T','desc.D':', total duration #T, mean activity #q #u',
-  'sub.eta':'Safety factor #e',
+  'sub.eta':'Base safety factor #e',
   'sum.head':'[Radiopharmaceutical demand estimate · #s]','sum.input':'Input: ','sum.est':'Base estimate (before safety factor) = #v #u',
-  'sum.rec':'Recommended loading activity (safety factor #e) = #v #u'
+  'sum.rec':'Recommended loading activity (base safety factor #e) = #v #u'
 }
 };
 function t(k){
@@ -939,7 +938,7 @@ function renderChart(st){
   var box = $('detail-chart');
   if (!st || !st.rows || !st.rows.length){ box.innerHTML = ''; return; }
   var rows = st.rows, t0 = st.t0, N = rows.length;
-  var L0 = st.rec;                        /* 起始：建议装药量 = 安全系数 × 基础估算量 */
+  var L0 = st.rec;                        /* 起始：建议装药量 = 基础安全系数 × 基础估算量 */
   var lam = lambda();
   var tail = 30;                          /* 末例后再看 30 分钟的衰变 */
   var tEnd = rows[N-1].t + tail;
